@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +16,13 @@ type CalendarHistoryProps = {
   logs: HabitLog[];
 };
 
+type CalendarCell = {
+  label: number | null;
+  dateKey: string | null;
+};
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 function toDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -24,90 +30,62 @@ function toDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function isSameMonth(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 export default function CalendarHistory({ habits, logs }: CalendarHistoryProps) {
-  const [displayMonth, setDisplayMonth] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(() =>
-    toDateKey(new Date())
-  );
+  const [displayMonth, setDisplayMonth] = useState(() => startOfMonth(new Date()));
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
 
-  const habitNameById = useMemo(
-    () => new Map(habits.map((habit) => [habit.id, habit.name])),
-    [habits]
-  );
-
-  const completionMap = useMemo(() => {
-    const map = new Map<string, Set<string>>();
+  const completionCountByDate = useMemo(() => {
+    const map = new Map<string, number>();
 
     for (const log of logs) {
-      const entry = map.get(log.completed_date) ?? new Set<string>();
-      entry.add(log.habit_id);
-      map.set(log.completed_date, entry);
+      map.set(log.completed_date, (map.get(log.completed_date) ?? 0) + 1);
     }
 
     return map;
   }, [logs]);
 
-  const daysInMonth = new Date(
-    displayMonth.getFullYear(),
-    displayMonth.getMonth() + 1,
-    0
-  ).getDate();
-  const firstWeekday = new Date(
-    displayMonth.getFullYear(),
-    displayMonth.getMonth(),
-    1
-  ).getDay();
-
   const dayCells = useMemo(() => {
-    const cells: Array<{ date: Date | null; dateKey: string | null }> = [];
+    const cells: CalendarCell[] = [];
+    const year = displayMonth.getFullYear();
+    const month = displayMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    for (let i = 0; i < firstWeekday; i += 1) {
-      cells.push({ date: null, dateKey: null });
+    for (let i = 0; i < firstDay; i += 1) {
+      cells.push({ label: null, dateKey: null });
     }
 
     for (let day = 1; day <= daysInMonth; day += 1) {
-      const date = new Date(displayMonth.getFullYear(), displayMonth.getMonth(), day);
-      cells.push({ date, dateKey: toDateKey(date) });
+      const date = new Date(year, month, day);
+      cells.push({ label: day, dateKey: toDateKey(date) });
     }
 
     return cells;
-  }, [daysInMonth, displayMonth, firstWeekday]);
+  }, [displayMonth]);
 
-  const selectedHabitIds = selectedDateKey
-    ? completionMap.get(selectedDateKey) ?? new Set<string>()
-    : new Set<string>();
-  const selectedHabits = Array.from(selectedHabitIds)
-    .map((habitId) => habitNameById.get(habitId) ?? "Unknown habit")
-    .sort((a, b) => a.localeCompare(b));
+  const selectedCompletionCount = selectedDateKey
+    ? completionCountByDate.get(selectedDateKey) ?? 0
+    : 0;
 
   return (
     <Card className="h-full">
-      <CardHeader>
+      <CardHeader className="space-y-4">
         <CardTitle>Calendar History</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
         <div className="flex items-center justify-between">
           <Button
             type="button"
             variant="outline"
-            size="icon"
             onClick={() =>
               setDisplayMonth(
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
               )
             }
-            aria-label="Previous month"
           >
-            <ChevronLeft className="size-4" />
+            Prev
           </Button>
           <p className="text-sm font-medium">
             {displayMonth.toLocaleString("default", { month: "long", year: "numeric" })}
@@ -115,35 +93,35 @@ export default function CalendarHistory({ habits, logs }: CalendarHistoryProps) 
           <Button
             type="button"
             variant="outline"
-            size="icon"
             onClick={() =>
               setDisplayMonth(
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
               )
             }
-            aria-label="Next month"
           >
-            <ChevronRight className="size-4" />
+            Next
           </Button>
         </div>
+      </CardHeader>
 
+      <CardContent className="space-y-4">
         <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">
-          {WEEKDAY_LABELS.map((weekday) => (
-            <div key={weekday} className="py-1">
-              {weekday}
+          {WEEKDAYS.map((day) => (
+            <div key={day} className="py-1">
+              {day}
             </div>
           ))}
         </div>
 
         <div className="grid grid-cols-7 gap-1">
           {dayCells.map((cell, index) => {
-            if (!cell.date || !cell.dateKey) {
+            if (cell.dateKey === null || cell.label === null) {
               return <div key={`empty-${index}`} className="aspect-square" />;
             }
 
-            const completionCount = completionMap.get(cell.dateKey)?.size ?? 0;
+            const completionCount = completionCountByDate.get(cell.dateKey) ?? 0;
+            const hasCompletions = completionCount > 0;
             const selected = selectedDateKey === cell.dateKey;
-            const inCurrentMonth = isSameMonth(cell.date, displayMonth);
 
             return (
               <button
@@ -152,42 +130,46 @@ export default function CalendarHistory({ habits, logs }: CalendarHistoryProps) 
                 onClick={() => setSelectedDateKey(cell.dateKey)}
                 className={[
                   "aspect-square rounded-md border text-xs transition-colors",
-                  selected
-                    ? "border-primary bg-primary/10 text-primary"
+                  hasCompletions
+                    ? "border-emerald-500/30 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
                     : "border-border hover:bg-muted",
-                  !inCurrentMonth ? "text-muted-foreground/50" : "",
+                  selected ? "ring-2 ring-primary ring-offset-1" : "",
                 ].join(" ")}
               >
-                <div className="flex h-full flex-col items-center justify-center gap-1">
-                  <span>{cell.date.getDate()}</span>
-                  {completionCount > 0 ? (
-                    <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] text-white">
-                      {completionCount}
-                    </span>
-                  ) : null}
-                </div>
+                {cell.label}
               </button>
             );
           })}
         </div>
 
-        <div className="rounded-lg border p-3">
-          <p className="mb-2 text-sm font-medium">
-            Completed on {selectedDateKey ?? "No date selected"}
-          </p>
-          {selectedHabits.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No habits completed on this date.</p>
+        <div className="rounded-lg border p-3 text-sm">
+          {selectedDateKey ? (
+            <p>
+              <span className="font-medium">{selectedDateKey}</span>
+              {" - "}
+              {selectedCompletionCount} completion
+              {selectedCompletionCount === 1 ? "" : "s"}
+            </p>
           ) : (
-            <ul className="space-y-1">
-              {selectedHabits.map((name) => (
-                <li key={name} className="text-sm">
-                  {name}
-                </li>
-              ))}
-            </ul>
+            <p className="text-muted-foreground">
+              Select a day to see completion count. Tracking {habits.length} habit
+              {habits.length === 1 ? "" : "s"}.
+            </p>
           )}
+
+          {selectedDateKey ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="mt-2 h-8 px-2 text-xs"
+              onClick={() => setSelectedDateKey(null)}
+            >
+              Clear selection
+            </Button>
+          ) : null}
         </div>
       </CardContent>
     </Card>
   );
 }
+

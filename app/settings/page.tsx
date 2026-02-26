@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { exportUserDataAsCsv, exportUserDataAsJson } from "@/lib/export";
@@ -13,16 +13,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-type UserMetadata = {
-  full_name?: unknown;
-  timezone?: unknown;
-  [key: string]: unknown;
-};
-
-const FALLBACK_TIMEZONES = [
+const TIMEZONES = [
   "UTC",
   "Asia/Manila",
   "America/New_York",
@@ -33,35 +32,27 @@ const FALLBACK_TIMEZONES = [
 export default function SettingsPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const timezoneOptions = useMemo(() => FALLBACK_TIMEZONES, []);
 
   const [isLoading, setIsLoading] = useState(true);
   const [email, setEmail] = useState("");
-  const [metadata, setMetadata] = useState<UserMetadata>({});
+  const [timezone, setTimezone] = useState("UTC");
 
-  const [fullName, setFullName] = useState("");
-  const [timezone, setTimezone] = useState("");
-
-  const [isProfileSaving, setIsProfileSaving] = useState(false);
-  const [profileStatus, setProfileStatus] = useState("");
-  const [profileError, setProfileError] = useState("");
-
-  const [isTimezoneSaving, setIsTimezoneSaving] = useState(false);
-  const [timezoneStatus, setTimezoneStatus] = useState("");
+  const [timezoneMessage, setTimezoneMessage] = useState("");
   const [timezoneError, setTimezoneError] = useState("");
+  const [isSavingTimezone, setIsSavingTimezone] = useState(false);
 
-  const [isJsonExporting, setIsJsonExporting] = useState(false);
-  const [isCsvExporting, setIsCsvExporting] = useState(false);
-  const [exportStatus, setExportStatus] = useState("");
+  const [exportMessage, setExportMessage] = useState("");
   const [exportError, setExportError] = useState("");
+  const [isExportingJson, setIsExportingJson] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   useEffect(() => {
-    let active = true;
+    let mounted = true;
 
     void supabase.auth
       .getUser()
       .then(({ data, error }) => {
-        if (!active) return;
+        if (!mounted) return;
 
         if (error || !data.user) {
           router.replace("/login");
@@ -69,127 +60,84 @@ export default function SettingsPage() {
         }
 
         const user = data.user;
-        const userMetadata = (user.user_metadata ?? {}) as UserMetadata;
-        const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-        const savedTimezone =
-          typeof userMetadata.timezone === "string" && userMetadata.timezone.trim().length > 0
-            ? userMetadata.timezone
-            : browserTimezone;
+        const metadataTimezone = user.user_metadata?.timezone;
+        const selectedTimezone =
+          typeof metadataTimezone === "string" && TIMEZONES.includes(metadataTimezone)
+            ? metadataTimezone
+            : "UTC";
 
         setEmail(user.email ?? "");
-        setMetadata(userMetadata);
-        setFullName(typeof userMetadata.full_name === "string" ? userMetadata.full_name : "");
-        setTimezone(savedTimezone);
+        setTimezone(selectedTimezone);
         setIsLoading(false);
       })
       .catch(() => {
-        if (!active) return;
+        if (!mounted) return;
         router.replace("/login");
       });
 
     return () => {
-      active = false;
+      mounted = false;
     };
   }, [router, supabase]);
 
-  async function handleSaveProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setProfileStatus("");
-    setProfileError("");
-    setIsProfileSaving(true);
-
-    const nextMetadata: UserMetadata = {
-      ...metadata,
-      full_name: fullName.trim(),
-    };
-
-    const { error } = await supabase.auth.updateUser({
-      data: nextMetadata,
-    });
-
-    setIsProfileSaving(false);
-
-    if (error) {
-      setProfileError(error.message);
-      return;
-    }
-
-    setMetadata(nextMetadata);
-    setProfileStatus("Profile updated.");
-  }
-
-  async function handleSaveTimezone(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setTimezoneStatus("");
+  async function handleSaveTimezone() {
+    setTimezoneMessage("");
     setTimezoneError("");
-
-    const trimmedTimezone = timezone.trim();
-    if (!trimmedTimezone) {
-      setTimezoneError("Timezone is required.");
-      return;
-    }
-
-    setIsTimezoneSaving(true);
-
-    const nextMetadata: UserMetadata = {
-      ...metadata,
-      timezone: trimmedTimezone,
-    };
+    setIsSavingTimezone(true);
 
     const { error } = await supabase.auth.updateUser({
-      data: nextMetadata,
+      data: { timezone },
     });
 
-    setIsTimezoneSaving(false);
+    setIsSavingTimezone(false);
 
     if (error) {
       setTimezoneError(error.message);
       return;
     }
 
-    setMetadata(nextMetadata);
-    setTimezoneStatus("Timezone updated.");
+    setTimezoneMessage("Timezone saved.");
   }
 
   async function handleExportJson() {
-    setExportStatus("");
+    setExportMessage("");
     setExportError("");
-    setIsJsonExporting(true);
+    setIsExportingJson(true);
 
     try {
       await exportUserDataAsJson(supabase);
-      setExportStatus("JSON export started.");
+      setExportMessage("JSON export started.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to export JSON.";
       setExportError(message);
     } finally {
-      setIsJsonExporting(false);
+      setIsExportingJson(false);
     }
   }
 
   async function handleExportCsv() {
-    setExportStatus("");
+    setExportMessage("");
     setExportError("");
-    setIsCsvExporting(true);
+    setIsExportingCsv(true);
 
     try {
       await exportUserDataAsCsv(supabase);
-      setExportStatus("CSV export started.");
+      setExportMessage("CSV export started.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to export CSV.";
       setExportError(message);
     } finally {
-      setIsCsvExporting(false);
+      setIsExportingCsv(false);
     }
   }
 
   if (isLoading) {
     return (
       <main className="min-h-screen bg-muted/30 px-4 py-10 sm:px-6">
-        <div className="mx-auto w-full max-w-3xl">
+        <div className="mx-auto max-w-3xl">
           <Card>
-            <CardContent className="py-10">
-              <p className="text-sm text-muted-foreground">Loading settings...</p>
+            <CardContent className="py-8 text-sm text-muted-foreground">
+              Loading settings...
             </CardContent>
           </Card>
         </div>
@@ -199,116 +147,79 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-10 sm:px-6">
-      <div className="mx-auto w-full max-w-3xl space-y-6">
-        <div className="space-y-1">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+        <div>
           <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your profile, timezone, and data export preferences.
-          </p>
+          <p className="text-muted-foreground">Manage your account preferences.</p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Profile</CardTitle>
-            <CardDescription>Update your name and review your account email.</CardDescription>
+            <CardDescription>Your account email.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={handleSaveProfile}>
-              <div className="space-y-2">
-                <Label htmlFor="settings-email">Email</Label>
-                <Input id="settings-email" value={email} disabled readOnly />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="settings-full-name">Full name</Label>
-                <Input
-                  id="settings-full-name"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  placeholder="Your name"
-                />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button type="submit" disabled={isProfileSaving}>
-                  {isProfileSaving ? "Saving..." : "Save Profile"}
-                </Button>
-                {profileStatus ? <p className="text-sm text-muted-foreground">{profileStatus}</p> : null}
-              </div>
-
-              {profileError ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {profileError}
-                </p>
-              ) : null}
-            </form>
+            <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">{email || "No email found"}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Timezone</CardTitle>
-            <CardDescription>
-              Choose the timezone used for date-based tracking and streak calculations.
-            </CardDescription>
+            <CardDescription>Select your timezone.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form className="space-y-4" onSubmit={handleSaveTimezone}>
-              <div className="space-y-2">
-                <Label htmlFor="settings-timezone">Timezone</Label>
-                <Input
-                  id="settings-timezone"
-                  list="timezone-options"
-                  value={timezone}
-                  onChange={(event) => setTimezone(event.target.value)}
-                  placeholder="America/New_York"
-                />
-                <datalist id="timezone-options">
-                  {timezoneOptions.map((zone) => (
-                    <option key={zone} value={zone} />
-                  ))}
-                </datalist>
-              </div>
+          <CardContent className="space-y-3">
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Choose timezone" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEZONES.map((zone) => (
+                  <SelectItem key={zone} value={zone}>
+                    {zone}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <div className="flex items-center gap-3">
-                <Button type="submit" disabled={isTimezoneSaving}>
-                  {isTimezoneSaving ? "Saving..." : "Save Timezone"}
-                </Button>
-                {timezoneStatus ? <p className="text-sm text-muted-foreground">{timezoneStatus}</p> : null}
-              </div>
+            <Button type="button" onClick={() => void handleSaveTimezone()} disabled={isSavingTimezone}>
+              {isSavingTimezone ? "Saving..." : "Save Timezone"}
+            </Button>
 
-              {timezoneError ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {timezoneError}
-                </p>
-              ) : null}
-            </form>
+            {timezoneMessage ? <p className="text-sm text-muted-foreground">{timezoneMessage}</p> : null}
+            {timezoneError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {timezoneError}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Data Export</CardTitle>
-            <CardDescription>
-              Download all of your habit data and logs as JSON or CSV.
-            </CardDescription>
+            <CardDescription>Download your habit data.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-3">
-              <Button type="button" onClick={() => void handleExportJson()} disabled={isJsonExporting || isCsvExporting}>
-                {isJsonExporting ? "Preparing JSON..." : "Export JSON"}
+              <Button
+                type="button"
+                onClick={() => void handleExportJson()}
+                disabled={isExportingJson || isExportingCsv}
+              >
+                {isExportingJson ? "Preparing JSON..." : "Export JSON"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => void handleExportCsv()}
-                disabled={isCsvExporting || isJsonExporting}
+                disabled={isExportingCsv || isExportingJson}
               >
-                {isCsvExporting ? "Preparing CSV..." : "Export CSV"}
+                {isExportingCsv ? "Preparing CSV..." : "Export CSV"}
               </Button>
             </div>
 
-            {exportStatus ? <p className="text-sm text-muted-foreground">{exportStatus}</p> : null}
+            {exportMessage ? <p className="text-sm text-muted-foreground">{exportMessage}</p> : null}
             {exportError ? (
               <p className="text-sm text-destructive" role="alert">
                 {exportError}
@@ -320,3 +231,4 @@ export default function SettingsPage() {
     </main>
   );
 }
+

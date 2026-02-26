@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 
+import { signupWithPassword } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,33 +13,52 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { createClient } from "@/lib/supabase/client";
+import { signupFormSchema } from "@/lib/validations";
 
 export default function SignupPage() {
-  const supabase = createClient();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     setErrorMessage("");
+    setEmailError("");
+    setPasswordError("");
     setSuccessMessage("");
-    setIsLoading(true);
 
-    const { error } = await supabase.auth.signUp({ email, password });
+    const parsed = signupFormSchema.safeParse({ email, password });
 
-    setIsLoading(false);
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        if (issue.path[0] === "email") {
+          setEmailError(issue.message);
+        }
+        if (issue.path[0] === "password") {
+          setPasswordError(issue.message);
+        }
+      }
 
-    if (error) {
-      setErrorMessage(error.message);
       return;
     }
 
-    setSuccessMessage("Account created. Check your email to confirm your account.");
+    setIsLoading(true);
+
+    const result = await signupWithPassword(parsed.data);
+
+    setIsLoading(false);
+
+    if (!result.success) {
+      setErrorMessage(result.error ?? "Signup failed.");
+      return;
+    }
+
+    setSuccessMessage(result.message ?? "Account created. Check your email to confirm your account.");
     setEmail("");
     setPassword("");
   }
@@ -66,6 +86,11 @@ export default function SignupPage() {
                 onChange={(event) => setEmail(event.target.value)}
                 required
               />
+              {emailError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {emailError}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -81,6 +106,11 @@ export default function SignupPage() {
                 minLength={6}
                 required
               />
+              {passwordError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {passwordError}
+                </p>
+              ) : null}
             </div>
 
             {errorMessage ? (

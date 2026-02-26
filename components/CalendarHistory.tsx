@@ -127,7 +127,7 @@ export default function CalendarHistory({ habits, logs }: CalendarHistoryProps) 
               <button
                 key={cell.dateKey}
                 type="button"
-                onClick={() => setSelectedDateKey(cell.dateKey)}
+                onClick={() => setSelectedDateKey(cell.dateKey ?? null)}
                 className={[
                   "aspect-square rounded-md border text-xs transition-colors",
                   hasCompletions

@@ -105,7 +105,11 @@ export default function TrendLine({ habits, logs }: TrendLineProps) {
               axisLine={false}
               tickFormatter={(value) => `${value}%`}
             />
-            <Tooltip formatter={(value: number) => `${value}%`} />
+            <Tooltip
+              formatter={(value: number | string | undefined) =>
+                `${value ?? 0}%`
+              }
+            />
             <Line
               type="monotone"
               dataKey="percentage"

@@ -116,7 +116,11 @@ export default function WeeklyChart({ habits, logs }: WeeklyChartProps) {
               axisLine={false}
               tickFormatter={(value) => `${value}%`}
             />
-            <Tooltip formatter={(value: number) => `${value}%`} />
+            <Tooltip
+              formatter={(value: number | string | undefined) =>
+                `${value ?? 0}%`
+              }
+            />
             <Bar dataKey="percentage" fill="var(--color-primary)" radius={[8, 8, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

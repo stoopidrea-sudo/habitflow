@@ -24,40 +24,16 @@ type UserMetadata = {
 
 const FALLBACK_TIMEZONES = [
   "UTC",
+  "Asia/Manila",
   "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
   "Europe/London",
-  "Europe/Berlin",
   "Asia/Tokyo",
-  "Asia/Kolkata",
-  "Australia/Sydney",
 ];
-
-function getTimezoneOptions() {
-  const intlWithSupportedValues = Intl as typeof Intl & {
-    supportedValuesOf?: (key: string) => string[];
-  };
-
-  if (typeof intlWithSupportedValues.supportedValuesOf === "function") {
-    try {
-      const zones = intlWithSupportedValues.supportedValuesOf("timeZone");
-      if (zones.length > 0) {
-        return zones;
-      }
-    } catch {
-      return FALLBACK_TIMEZONES;
-    }
-  }
-
-  return FALLBACK_TIMEZONES;
-}
 
 export default function SettingsPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const timezoneOptions = useMemo(() => getTimezoneOptions(), []);
+  const timezoneOptions = useMemo(() => FALLBACK_TIMEZONES, []);
 
   const [isLoading, setIsLoading] = useState(true);
   const [email, setEmail] = useState("");

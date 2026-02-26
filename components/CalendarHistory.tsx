@@ -35,7 +35,9 @@ export default function CalendarHistory({ habits, logs }: CalendarHistoryProps) 
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
-  const [selectedDateKey, setSelectedDateKey] = useState(() => toDateKey(new Date()));
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(() =>
+    toDateKey(new Date())
+  );
 
   const habitNameById = useMemo(
     () => new Map(habits.map((habit) => [habit.id, habit.name])),
@@ -80,7 +82,9 @@ export default function CalendarHistory({ habits, logs }: CalendarHistoryProps) 
     return cells;
   }, [daysInMonth, displayMonth, firstWeekday]);
 
-  const selectedHabitIds = completionMap.get(selectedDateKey) ?? new Set<string>();
+  const selectedHabitIds = selectedDateKey
+    ? completionMap.get(selectedDateKey) ?? new Set<string>()
+    : new Set<string>();
   const selectedHabits = Array.from(selectedHabitIds)
     .map((habitId) => habitNameById.get(habitId) ?? "Unknown habit")
     .sort((a, b) => a.localeCompare(b));
@@ -169,7 +173,7 @@ export default function CalendarHistory({ habits, logs }: CalendarHistoryProps) 
 
         <div className="rounded-lg border p-3">
           <p className="mb-2 text-sm font-medium">
-            Completed on {selectedDateKey}
+            Completed on {selectedDateKey ?? "No date selected"}
           </p>
           {selectedHabits.length === 0 ? (
             <p className="text-sm text-muted-foreground">No habits completed on this date.</p>

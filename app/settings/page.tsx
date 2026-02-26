@@ -36,7 +36,7 @@ const FALLBACK_TIMEZONES = [
 ];
 
 function getTimezoneOptions() {
-  const intlWithSupportedValues = Intl as Intl & {
+  const intlWithSupportedValues = Intl as typeof Intl & {
     supportedValuesOf?: (key: string) => string[];
   };
 
@@ -344,4 +344,3 @@ export default function SettingsPage() {
     </main>
   );
 }
-
